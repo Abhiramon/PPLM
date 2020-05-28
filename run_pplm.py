@@ -677,6 +677,7 @@ def set_generic_model_params(discrim_weights, discrim_meta):
 
 def run_pplm_example(
         pretrained_model="gpt2-medium",
+        load_from_tf=False,
         cond_text="",
         uncond=False,
         num_samples=1,
@@ -729,7 +730,8 @@ def run_pplm_example(
     # load pretrained model
     model = GPT2LMHeadModel.from_pretrained(
         pretrained_model,
-        output_hidden_states=True
+        output_hidden_states=True,
+        from_tf=load_from_tf
     )
     model.to(device)
     model.eval()
