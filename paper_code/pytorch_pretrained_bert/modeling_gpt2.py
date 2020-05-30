@@ -414,14 +414,18 @@ class GPT2PreTrainedModel(nn.Module):
             logger.info("loading configuration file {} from cache at {}".format(
                 config_file, resolved_config_file))
         # Load config
+        print("dbug 1")
         config = GPT2Config.from_json_file(resolved_config_file)
         logger.info("Model config {}".format(config))
         # Instantiate model.
         model = cls(config, *inputs, **kwargs)
+        print("dbug 2")
+        print("From_tf",from_tf)
         if state_dict is None and not from_tf:
             state_dict = torch.load(resolved_archive_file, map_location='cpu')
         if from_tf:
             # Directly load from a TensorFlow checkpoint (stored as NumPy array)
+            print("Calling tf func")
             return load_tf_weights_in_gpt2(model, resolved_archive_file)
 
         old_keys = []
