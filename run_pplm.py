@@ -702,7 +702,8 @@ def run_pplm_example(
         seed=0,
         no_cuda=False,
         colorama=False,
-        verbosity='regular'
+        verbosity='regular',
+        outfile="./output"
 ):
     # set Random seed
     torch.manual_seed(seed)
@@ -795,8 +796,8 @@ def run_pplm_example(
     # untokenize unperturbed text
     unpert_gen_text = tokenizer.decode(unpert_gen_tok_text.tolist()[0])
 
-    if verbosity_level >= REGULAR:
-        print("=" * 80)
+    # if verbosity_level >= REGULAR:
+    #     print("=" * 80)
     # print("= Unperturbed generated text =")
     # print(unpert_gen_text)
     # print()
@@ -814,6 +815,9 @@ def run_pplm_example(
             bow_word_ids.update(w[0] for w in filtered)
 
     # iterate through the perturbed texts
+
+    file = open(outfile, 'w')
+
     for i, pert_gen_tok_text in enumerate(pert_gen_tok_texts):
         try:
             # untokenize unperturbed text
@@ -834,8 +838,8 @@ def run_pplm_example(
                 pert_gen_text = tokenizer.decode(pert_gen_tok_text.tolist()[0])
 
             # print("= Perturbed generated text {} =".format(i + 1))
-            print(pert_gen_text)
-            print("====================\n")
+            file.write(pert_gen_text)
+            file.write("====================\n")
         except:
             pass
 
@@ -844,6 +848,7 @@ def run_pplm_example(
             (tokenized_cond_text, pert_gen_tok_text, unpert_gen_tok_text)
         )
 
+    file.close()
     return
 
 
