@@ -88,10 +88,25 @@ DISCRIMINATOR_MODELS_PARAMS = {
 	},
 }
 
+def get_phonemes(word):
+	phonemes = pronouncing.phones_for_word(word)
+	if len(phonemes)==0:
+		return []
+	return phonemes[0].split()
+
+def get_vowel_phonemes(word):
+	vowel_starts = ['A','E','I','O','U']
+	phonemes = get_phonemes(word)
+	if len(phonemes)==0:
+		return []
+	return [ph for ph in phonemes if ph[0] in vowel_starts]
+
 def get_rhyme_bow(text):
 	bow = []
 	for token in word_tokenize(text.strip()):
-		bow.extend(pronouncing.rhymes(token))
+		if len(get_vowel_phonemes(token))>=2:
+			bow.extend(pronouncing.rhymes(token))
+	print("Rhyming words identified:",bow)
 	return bow
 
 def to_var(x, requires_grad=False, volatile=False, device='cuda'):
@@ -384,12 +399,12 @@ def get_bag_of_words_indices_rhyming(bag_of_words_ids_or_paths: List[str], token
 							  add_prefix_space=True,
 							  add_special_tokens=False)
 			 for word in words])
-
-	bow_indices.append(
-			[tokenizer.encode(word.strip(),
-							  add_prefix_space=True,
-							  add_special_tokens=False)
-			 for word in rhyming_words])
+	if len(rhyming_words)>0:
+		bow_indices.append(
+				[tokenizer.encode(word.strip(),
+								  add_prefix_space=True,
+								  add_special_tokens=False)
+				 for word in rhyming_words])
 
 	return bow_indices
 
@@ -451,7 +466,7 @@ def full_text_generation(
 		kl_scale=0.01,
 		verbosity_level=REGULAR,
 		repetition_penalty=1.0,
-		rhyme = False,
+		rhyme_text = "",
 		**kwargs
 ):
 	classifier, class_id = get_classifier(
@@ -460,11 +475,10 @@ def full_text_generation(
 		device
 	)
 
-	if rhyme:
-		rhyming_words = get_rhyme_bow(cond_text)
 	bow_indices = []
 	if bag_of_words:
-		if rhyme:
+		if rhyme_text:
+			rhyming_words = get_rhyme_bow(rhyme_text)
 			bow_indices = get_bag_of_words_indices_rhyming(bag_of_words.split(";"),
 											   tokenizer, rhyming_words)
 		else:
@@ -753,7 +767,7 @@ def run_pplm_example(
 		outfile="./output",
 		print_also=False,
 		repetition_penalty=1.0,
-		rhyme = False
+		rhyme_text = ""
 ):
 	# set Random seed
 	torch.manual_seed(seed)
@@ -843,7 +857,7 @@ def run_pplm_example(
 		kl_scale=kl_scale,
 		verbosity_level=verbosity_level,
 		repetition_penalty=repetition_penalty,
-		rhyme = rhyme
+		rhyme_text = rhyme_text
 	)
 	with torch.no_grad():
 		# untokenize unperturbed text
@@ -857,11 +871,10 @@ def run_pplm_example(
 
 		generated_texts = []
 
-		if rhyme:
-			rhyming_words = get_rhyme_bow(cond_text)
 		bow_word_ids = set()
 		if bag_of_words and colorama:
-			if rhyme:
+			if rhyme_text:
+				rhyming_words = get_rhyme_bow(rhyme_text)
 				bow_indices = get_bag_of_words_indices_rhyming(bag_of_words.split(";"),
 												   tokenizer, rhyming_words)
 			else:
