@@ -449,6 +449,7 @@ def full_text_generation(
 		kl_scale=0.01,
 		verbosity_level=REGULAR,
 		repetition_penalty=1.0,
+		rhyme = False,
 		**kwargs
 ):
 	classifier, class_id = get_classifier(
@@ -457,11 +458,16 @@ def full_text_generation(
 		device
 	)
 
-	rhyming_words = get_rhyme_bow(context)
+	if rhyme:
+		rhyming_words = get_rhyme_bow(context)
 	bow_indices = []
 	if bag_of_words:
-		bow_indices = get_bag_of_words_indices_rhyming(bag_of_words.split(";"),
+		if rhyme:
+			bow_indices = get_bag_of_words_indices_rhyming(bag_of_words.split(";"),
 											   tokenizer, rhyming_words)
+		else:
+			bow_indices = get_bag_of_words_indices_rhyming(bag_of_words.split(";"),
+											   tokenizer)
 
 	if bag_of_words and classifier:
 		loss_type = PPLM_BOW_DISCRIM
@@ -744,7 +750,8 @@ def run_pplm_example(
 		verbosity='regular',
 		outfile="./output",
 		print_also=False,
-		repetition_penalty=1.0
+		repetition_penalty=1.0,
+		rhyme = False
 ):
 	# set Random seed
 	torch.manual_seed(seed)
@@ -832,7 +839,8 @@ def run_pplm_example(
 		gm_scale=gm_scale,
 		kl_scale=kl_scale,
 		verbosity_level=verbosity_level,
-		repetition_penalty=repetition_penalty
+		repetition_penalty=repetition_penalty,
+		rhyme = rhyme
 	)
 
 	# untokenize unperturbed text
@@ -846,11 +854,16 @@ def run_pplm_example(
 
 	generated_texts = []
 
-	rhyming_words = get_rhyme_bow(context)
+	if rhyme:
+		rhyming_words = get_rhyme_bow(context)
 	bow_word_ids = set()
 	if bag_of_words and colorama:
-		bow_indices = get_bag_of_words_indices_rhyming(bag_of_words.split(";"),
+		if rhyme:
+			bow_indices = get_bag_of_words_indices_rhyming(bag_of_words.split(";"),
 											   tokenizer, rhyming_words)
+		else:
+			bow_indices = get_bag_of_words_indices_rhyming(bag_of_words.split(";"),
+											   tokenizer)
 		for single_bow_list in bow_indices:
 			# filtering all words in the list composed of more than 1 token
 			filtered = list(filter(lambda x: len(x) <= 1, single_bow_list))
@@ -895,7 +908,7 @@ def run_pplm_example(
 		)
 
 	file.close()
-	return
+	return pert_gen_tok_texts
 
 
 if __name__ == '__main__':
