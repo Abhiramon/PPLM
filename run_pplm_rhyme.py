@@ -25,6 +25,7 @@ python examples/run_pplm.py -D sentiment --class_label 3 --cond_text "The lake" 
 import argparse
 import json
 import pronouncing
+from nltk import word_tokenize
 from operator import add
 from typing import List, Optional, Tuple, Union
 
@@ -89,8 +90,8 @@ DISCRIMINATOR_MODELS_PARAMS = {
 
 def get_rhyme_bow(text):
 	bow = []
-	for word in text.strip().split():
-		bow.extend(pron.rhymes(word))
+	for token in word_tokenize(text):
+		bow.extend(pron.rhymes(token))
 	return bow
 
 def to_var(x, requires_grad=False, volatile=False, device='cuda'):
