@@ -926,6 +926,10 @@ def run_pplm_example(
 			)
 
 		file.close()
+		
+		del model
+		torch.cuda.empty_cache()
+		
 		return pert_texts
 
 
