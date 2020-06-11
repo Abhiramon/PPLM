@@ -90,7 +90,7 @@ DISCRIMINATOR_MODELS_PARAMS = {
 
 def get_rhyme_bow(text):
 	bow = []
-	for token in word_tokenize(text):
+	for token in word_tokenize(text.strip()):
 		bow.extend(pron.rhymes(token))
 	return bow
 
@@ -460,7 +460,7 @@ def full_text_generation(
 	)
 
 	if rhyme:
-		rhyming_words = get_rhyme_bow(context)
+		rhyming_words = get_rhyme_bow(tokenizer.decode(context.tolist()[0]))
 	bow_indices = []
 	if bag_of_words:
 		if rhyme:
@@ -856,7 +856,7 @@ def run_pplm_example(
 	generated_texts = []
 
 	if rhyme:
-		rhyming_words = get_rhyme_bow(context)
+		rhyming_words = get_rhyme_bow(con_text)
 	bow_word_ids = set()
 	if bag_of_words and colorama:
 		if rhyme:
