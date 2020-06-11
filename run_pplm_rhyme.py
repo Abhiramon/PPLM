@@ -466,7 +466,7 @@ def full_text_generation(
 			bow_indices = get_bag_of_words_indices_rhyming(bag_of_words.split(";"),
 											   tokenizer, rhyming_words)
 		else:
-			bow_indices = get_bag_of_words_indices_rhyming(bag_of_words.split(";"),
+			bow_indices = get_bag_of_words_indices(bag_of_words.split(";"),
 											   tokenizer)
 
 	if bag_of_words and classifier:
@@ -862,7 +862,7 @@ def run_pplm_example(
 			bow_indices = get_bag_of_words_indices_rhyming(bag_of_words.split(";"),
 											   tokenizer, rhyming_words)
 		else:
-			bow_indices = get_bag_of_words_indices_rhyming(bag_of_words.split(";"),
+			bow_indices = get_bag_of_words_indices(bag_of_words.split(";"),
 											   tokenizer)
 		for single_bow_list in bow_indices:
 			# filtering all words in the list composed of more than 1 token
@@ -873,7 +873,6 @@ def run_pplm_example(
 	# iterate through the perturbed texts
 
 	file = open(outfile, 'w')
-
 	for i, pert_gen_tok_text in enumerate(pert_gen_tok_texts):
 		try:
 			# untokenize unperturbed text
@@ -908,7 +907,7 @@ def run_pplm_example(
 		)
 
 	file.close()
-	return pert_gen_tok_texts
+	return generated_texts
 
 
 if __name__ == '__main__':
