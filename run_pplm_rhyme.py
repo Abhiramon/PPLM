@@ -873,6 +873,7 @@ def run_pplm_example(
 	# iterate through the perturbed texts
 
 	file = open(outfile, 'w')
+	pert_texts = []
 	for i, pert_gen_tok_text in enumerate(pert_gen_tok_texts):
 		try:
 			# untokenize unperturbed text
@@ -892,6 +893,8 @@ def run_pplm_example(
 			else:
 				pert_gen_text = tokenizer.decode(pert_gen_tok_text.tolist()[0])
 
+			pert_texts.append(pert_gen_text)
+
 			# print("= Perturbed generated text {} =".format(i + 1))
 			file.write(pert_gen_text)
 			file.write("\n====================\n")
@@ -907,7 +910,7 @@ def run_pplm_example(
 		)
 
 	file.close()
-	return generated_texts
+	return pert_texts
 
 
 if __name__ == '__main__':
