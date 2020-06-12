@@ -25,6 +25,7 @@ python examples/run_pplm.py -D sentiment --class_label 3 --cond_text "The lake" 
 import argparse
 import json
 import pronouncing
+import pickle
 from nltk import word_tokenize
 from operator import add
 from typing import List, Optional, Tuple, Union
@@ -88,6 +89,8 @@ DISCRIMINATOR_MODELS_PARAMS = {
 	},
 }
 
+GLOVE_VOCAB = pickle.load(open("./glove_vocab.pkl", 'rb'))
+
 def get_phonemes(word):
 	phonemes = pronouncing.phones_for_word(word)
 	if len(phonemes)==0:
@@ -101,12 +104,17 @@ def get_vowel_phonemes(word):
 		return []
 	return [ph for ph in phonemes if ph[0] in vowel_starts]
 
-def get_rhyme_bow(text):
+def get_rhyme_bow(text, min_syll = 2):
 	bow = []
-	for token in word_tokenize(text.strip()):
-		if len(get_vowel_phonemes(token))>=2:
-			bow.extend(pronouncing.rhymes(token))
-	print("Rhyming words identified:",bow)
+	split = word_tokenize(text.strip())
+	for token in split:
+		if len(get_vowel_phonemes(token))>=min_syll:
+			new_rhymes = []
+			for rh in pronouncing.rhymes(token):
+				if (rh not in bow) and (rh in GLOVE_VOCAB) and (rh not in split):
+					new_rhymes.append(rh)
+			bow.extend(new_rhymes)
+	# print("Rhyming words identified:",bow)
 	return bow
 
 def to_var(x, requires_grad=False, volatile=False, device='cuda'):
@@ -393,18 +401,23 @@ def get_bag_of_words_indices_rhyming(bag_of_words_ids_or_paths: List[str], token
 		else:
 			filepath = id_or_path
 		with open(filepath, "r") as f:
-			words = f.read().strip().split("\n")
+			if len(rhyming_words)>0:
+				words = rhyming_words
+			else:
+				words = f.read().strip().split("\n")
+			# words.extend(rhyming_words)
+			print("Using bag of words:", words)
 		bow_indices.append(
 			[tokenizer.encode(word.strip(),
 							  add_prefix_space=True,
 							  add_special_tokens=False)
 			 for word in words])
-	if len(rhyming_words)>0:
-		bow_indices.append(
-				[tokenizer.encode(word.strip(),
-								  add_prefix_space=True,
-								  add_special_tokens=False)
-				 for word in rhyming_words])
+	# if len(rhyming_words)>0:
+	# 	bow_indices.append(
+	# 			[tokenizer.encode(word.strip(),
+	# 							  add_prefix_space=True,
+	# 							  add_special_tokens=False)
+	# 			 for word in rhyming_words])
 
 	return bow_indices
 
@@ -467,6 +480,7 @@ def full_text_generation(
 		verbosity_level=REGULAR,
 		repetition_penalty=1.0,
 		rhyme_text = "",
+		rhyme_min_syllables = 1,
 		**kwargs
 ):
 	classifier, class_id = get_classifier(
@@ -478,7 +492,7 @@ def full_text_generation(
 	bow_indices = []
 	if bag_of_words:
 		if rhyme_text:
-			rhyming_words = get_rhyme_bow(rhyme_text)
+			rhyming_words = get_rhyme_bow(rhyme_text, rhyme_min_syllables)
 			bow_indices = get_bag_of_words_indices_rhyming(bag_of_words.split(";"),
 											   tokenizer, rhyming_words)
 		else:
@@ -767,8 +781,10 @@ def run_pplm_example(
 		outfile="./output",
 		print_also=False,
 		repetition_penalty=1.0,
-		rhyme_text = ""
+		rhyme_text = "",
+		rhyme_min_syllables=1
 ):
+
 	# set Random seed
 	torch.manual_seed(seed)
 	np.random.seed(seed)
@@ -857,7 +873,8 @@ def run_pplm_example(
 		kl_scale=kl_scale,
 		verbosity_level=verbosity_level,
 		repetition_penalty=repetition_penalty,
-		rhyme_text = rhyme_text
+		rhyme_text = rhyme_text,
+		rhyme_min_syllables = rhyme_min_syllables
 	)
 	with torch.no_grad():
 		# untokenize unperturbed text
@@ -874,7 +891,7 @@ def run_pplm_example(
 		bow_word_ids = set()
 		if bag_of_words and colorama:
 			if rhyme_text:
-				rhyming_words = get_rhyme_bow(rhyme_text)
+				rhyming_words = get_rhyme_bow(rhyme_text, rhyme_min_syllables)
 				bow_indices = get_bag_of_words_indices_rhyming(bag_of_words.split(";"),
 												   tokenizer, rhyming_words)
 			else:
