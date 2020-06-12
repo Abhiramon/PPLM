@@ -26,6 +26,7 @@ import argparse
 import json
 import pronouncing
 import pickle
+from nltk.corpus import stopwords
 from nltk import word_tokenize
 from operator import add
 from typing import List, Optional, Tuple, Union
@@ -106,12 +107,13 @@ def get_vowel_phonemes(word):
 
 def get_rhyme_bow(text, min_syll = 2):
 	bow = []
+	stop_words = set(stopwords.words('english'))
 	split = word_tokenize(text.strip())
 	for token in split:
 		if len(get_vowel_phonemes(token))>=min_syll:
 			new_rhymes = []
 			for rh in pronouncing.rhymes(token):
-				if (rh not in bow) and (rh in GLOVE_VOCAB) and (rh not in split):
+				if (rh not in bow) and (rh in GLOVE_VOCAB) and (rh not in split) and (rh not in stop_words):
 					new_rhymes.append(rh)
 			bow.extend(new_rhymes)
 	# print("Rhyming words identified:",bow)
@@ -339,6 +341,11 @@ def perturb_past(
 	]
 	pert_past = list(map(add, past, grad_accumulator))
 
+	del grad_accumulator, window_mask
+
+	if device == "cuda":
+		torch.cuda.empty_cache()
+
 	return pert_past, new_accumulated_hidden, grad_norms, loss_per_iter
 
 
@@ -406,7 +413,6 @@ def get_bag_of_words_indices_rhyming(bag_of_words_ids_or_paths: List[str], token
 			else:
 				words = f.read().strip().split("\n")
 			# words.extend(rhyming_words)
-			print("Using bag of words:", words)
 		bow_indices.append(
 			[tokenizer.encode(word.strip(),
 							  add_prefix_space=True,
@@ -567,8 +573,11 @@ def full_text_generation(
 			discrim_losses.append(discrim_loss.data.cpu().numpy())
 		losses_in_time.append(loss_in_time)
 
+	del classifier
+
 	if device == 'cuda':
 		torch.cuda.empty_cache()
+
 
 	return unpert_gen_tok_text, pert_gen_tok_texts, discrim_losses, losses_in_time
 
@@ -733,6 +742,11 @@ def generate_text_pplm(
 		if verbosity_level >= REGULAR:
 			print(tokenizer.decode(output_so_far.tolist()[0]))
 
+	# del one_hot_bows_vectors, per_logits, past, pert_hidden, unpert_past, unpert_hidden, unpert_logits
+
+	if device == "cuda":
+		torch.cuda.empty_cache()
+
 	return output_so_far, unpert_discrim_loss, loss_in_time
 
 
@@ -876,78 +890,79 @@ def run_pplm_example(
 		rhyme_text = rhyme_text,
 		rhyme_min_syllables = rhyme_min_syllables
 	)
-	with torch.no_grad():
-		# untokenize unperturbed text
-		unpert_gen_text = tokenizer.decode(unpert_gen_tok_text.tolist()[0])
+	# untokenize unperturbed text
+	unpert_gen_text = tokenizer.decode(unpert_gen_tok_text.tolist()[0])
 
-		# if verbosity_level >= REGULAR:
-		#     print("=" * 80)
-		# print("= Unperturbed generated text =")
-		# print(unpert_gen_text)
-		# print()
+	# if verbosity_level >= REGULAR:
+	#     print("=" * 80)
+	# print("= Unperturbed generated text =")
+	# print(unpert_gen_text)
+	# print()
 
-		generated_texts = []
+	generated_texts = []
 
-		bow_word_ids = set()
-		if bag_of_words and colorama:
-			if rhyme_text:
-				rhyming_words = get_rhyme_bow(rhyme_text, rhyme_min_syllables)
-				bow_indices = get_bag_of_words_indices_rhyming(bag_of_words.split(";"),
-												   tokenizer, rhyming_words)
+	bow_word_ids = set()
+	if bag_of_words and colorama:
+		if rhyme_text:
+			rhyming_words = get_rhyme_bow(rhyme_text, rhyme_min_syllables)
+			bow_indices = get_bag_of_words_indices_rhyming(bag_of_words.split(";"),
+											   tokenizer, rhyming_words)
+		else:
+			bow_indices = get_bag_of_words_indices(bag_of_words.split(";"),
+											   tokenizer)
+		for single_bow_list in bow_indices:
+			# filtering all words in the list composed of more than 1 token
+			filtered = list(filter(lambda x: len(x) <= 1, single_bow_list))
+			# w[0] because we are sure w has only 1 item because previous fitler
+			bow_word_ids.update(w[0] for w in filtered)
+
+	# iterate through the perturbed texts
+
+	file = open(outfile, 'w')
+	pert_texts = []
+	for i, pert_gen_tok_text in enumerate(pert_gen_tok_texts):
+		try:
+			# untokenize unperturbed text
+			if colorama:
+				import colorama
+
+				pert_gen_text = ''
+				for word_id in pert_gen_tok_text.tolist()[0]:
+					if word_id in bow_word_ids:
+						pert_gen_text += '{}{}{}'.format(
+							colorama.Fore.RED,
+							tokenizer.decode([word_id]),
+							colorama.Style.RESET_ALL
+						)
+					else:
+						pert_gen_text += tokenizer.decode([word_id])
 			else:
-				bow_indices = get_bag_of_words_indices(bag_of_words.split(";"),
-												   tokenizer)
-			for single_bow_list in bow_indices:
-				# filtering all words in the list composed of more than 1 token
-				filtered = list(filter(lambda x: len(x) <= 1, single_bow_list))
-				# w[0] because we are sure w has only 1 item because previous fitler
-				bow_word_ids.update(w[0] for w in filtered)
+				pert_gen_text = tokenizer.decode(pert_gen_tok_text.tolist()[0], skip_special_tokens = True)
 
-		# iterate through the perturbed texts
+			pert_texts.append(pert_gen_text)
 
-		file = open(outfile, 'w')
-		pert_texts = []
-		for i, pert_gen_tok_text in enumerate(pert_gen_tok_texts):
-			try:
-				# untokenize unperturbed text
-				if colorama:
-					import colorama
+			# print("= Perturbed generated text {} =".format(i + 1))
+			file.write(pert_gen_text)
+			file.write("\n====================\n")
+			if print_also:
+				print(pert_gen_text)
+				print("\n====================\n")
+		except:
+			pass
 
-					pert_gen_text = ''
-					for word_id in pert_gen_tok_text.tolist()[0]:
-						if word_id in bow_word_ids:
-							pert_gen_text += '{}{}{}'.format(
-								colorama.Fore.RED,
-								tokenizer.decode([word_id]),
-								colorama.Style.RESET_ALL
-							)
-						else:
-							pert_gen_text += tokenizer.decode([word_id])
-				else:
-					pert_gen_text = tokenizer.decode(pert_gen_tok_text.tolist()[0], skip_special_tokens = True)
+		# keep the prefix, perturbed seq, original seq for each index
+		generated_texts.append(
+			(tokenized_cond_text, pert_gen_tok_text, unpert_gen_tok_text)
+		)
 
-				pert_texts.append(pert_gen_text)
+	file.close()
 
-				# print("= Perturbed generated text {} =".format(i + 1))
-				file.write(pert_gen_text)
-				file.write("\n====================\n")
-				if print_also:
-					print(pert_gen_text)
-					print("\n====================\n")
-			except:
-				pass
-
-			# keep the prefix, perturbed seq, original seq for each index
-			generated_texts.append(
-				(tokenized_cond_text, pert_gen_tok_text, unpert_gen_tok_text)
-			)
-
-		file.close()
-		
-		del model
+	del model, unpert_gen_tok_text, pert_gen_tok_texts
+	
+	if device == "cuda":
 		torch.cuda.empty_cache()
-		
-		return pert_texts
+
+	return pert_texts
 
 
 if __name__ == '__main__':
