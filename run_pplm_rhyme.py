@@ -116,7 +116,6 @@ def get_rhyme_bow(text, min_syll = 2):
 				if (rh not in bow) and (rh in GLOVE_VOCAB) and (rh not in split) and (rh not in stop_words):
 					new_rhymes.append(rh)
 			bow.extend(new_rhymes)
-	# print("Rhyming words identified:",bow)
 	return bow
 
 def to_var(x, requires_grad=False, volatile=False, device='cuda'):
@@ -399,7 +398,16 @@ def get_classifier(
 
 	return classifier, label_id
 
-def get_bag_of_words_indices_rhyming(bag_of_words_ids_or_paths: List[str], tokenizer, rhyming_words) -> \
+# def break_indices(bow_indices):
+# 	indices = []
+# 	for single_bow in bow_indices:
+# 		new_single_bow = []
+# 		for encoded in single_bow:
+# 			new_single_bow.extend([[e] for e in encoded])
+# 		indices.append(new_single_bow)
+# 	return indices
+
+def get_bag_of_words_indices_rhyming(bag_of_words_ids_or_paths: List[str], tokenizer, rhyming_words: List[str]) -> \
 		List[List[List[int]]]:
 	bow_indices = []
 	for id_or_path in bag_of_words_ids_or_paths:
@@ -418,14 +426,8 @@ def get_bag_of_words_indices_rhyming(bag_of_words_ids_or_paths: List[str], token
 							  add_prefix_space=True,
 							  add_special_tokens=False)
 			 for word in words])
-	# if len(rhyming_words)>0:
-	# 	bow_indices.append(
-	# 			[tokenizer.encode(word.strip(),
-	# 							  add_prefix_space=True,
-	# 							  add_special_tokens=False)
-	# 			 for word in rhyming_words])
-
 	return bow_indices
+
 
 def get_bag_of_words_indices(bag_of_words_ids_or_paths: List[str], tokenizer) -> \
 		List[List[List[int]]]:
